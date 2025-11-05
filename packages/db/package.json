@@ -1,0 +1,36 @@
+{
+  "name": "@flexslot/db",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "prisma": "prisma",
+    "clean": "rimraf dist",
+    "build": "tsup src/index.ts --dts --format esm,cjs --sourcemap",
+    "dev": "tsup src/index.ts --watch --dts --format esm,cjs",
+    "generate": "prisma generate",
+    "postinstall": "prisma generate",
+    "prepare": "pnpm build"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "prisma": "^5.20.1",
+    "tsup": "^8.0.2",
+    "@types/node": "^22.7.4",
+    "rimraf": "^6.0.1"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  }
+}

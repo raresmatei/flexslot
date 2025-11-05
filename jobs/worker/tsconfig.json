@@ -1,0 +1,17 @@
+// jobs/worker/tsconfig.json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@flexslot/db": ["../../packages/db/src/index.ts"],
+      "@flexslot/types": ["../../packages/types/src/index.ts"]
+    },
+    "types": ["node"],
+    "lib": ["ES2023"]
+  },
+  "include": ["src"],
+  "module": "ESNext",
+  "moduleResolution": "NodeNext",
+  "types": ["node"]
+}
