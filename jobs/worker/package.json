@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx --tsconfig tsconfig.json watch src/index.ts"
+    "dev": "tsx watch --tsconfig tsconfig.json src/index.ts"
   },
   "dependencies": {
     "@flexslot/db": "workspace:*",

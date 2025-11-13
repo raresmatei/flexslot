@@ -1,8 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"],
-    "lib": ["ES2023"],
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
     "outDir": "dist"
   },
   "include": ["src"]

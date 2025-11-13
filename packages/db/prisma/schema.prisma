@@ -1,7 +1,129 @@
- generator client {
-   provider = "prisma-client-js"
- }
- datasource db {
-   provider = "postgresql"
-   url      = env("DATABASE_URL")
- }
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reservations Reservation[]
+  holds        Hold[]
+}
+
+model Resource {
+  id        String   @id @default(cuid())
+  name      String
+  location  String?
+  capacity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  slots        Slot[]
+  reservations Reservation[]
+  integrations ResourceIntegration[]
+}
+
+model Slot {
+  id         String     @id @default(cuid())
+  resourceId String
+  resource   Resource   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  startsAt   DateTime
+  endsAt     DateTime
+  status     SlotStatus @default(AVAILABLE)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  holds        Hold[]
+  reservations Reservation[]
+
+  @@unique([resourceId, startsAt, endsAt], map: "uniq_resource_time_window")
+  @@index([startsAt])
+  @@index([endsAt])
+}
+
+model Hold {
+  id        String     @id @default(cuid())
+  slotId    String
+  slot      Slot       @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  status    HoldStatus @default(ACTIVE)
+  token     String     @unique
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([expiresAt])
+}
+
+model Reservation {
+  id          String            @id @default(cuid())
+  slotId      String
+  slot        Slot              @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  resourceId  String
+  resource    Resource          @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  status      ReservationStatus @default(CONFIRMED)
+  confirmedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([slotId], map: "uniq_slot_reservation")
+  @@index([resourceId])
+}
+
+enum SlotStatus {
+  AVAILABLE
+  HELD
+  RESERVED
+  BLOCKED
+}
+
+enum HoldStatus {
+  ACTIVE
+  EXPIRED
+  CONVERTED
+  CANCELED
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+}
+
+model ResourceIntegration {
+  id                 String   @id @default(cuid())
+  resourceId         String
+  resource           Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  provider           String
+  externalCalendarId String
+  isActive           Boolean  @default(true)
+  timezone           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model ExternalEventMap {
+  id                 String   @id @default(cuid())
+  resourceId         String
+  provider           String
+  externalCalendarId String
+  externalEventId    String
+  uid                String
+  reservationId      String?
+  holdId             String?
+  etag_or_changeKey  String?
+  lastSyncedAt       DateTime @default(now())
+
+  @@unique([provider, externalCalendarId, externalEventId])
+}

@@ -5,5 +5,5 @@
     "lib": ["ES2023"],
     "outDir": "dist"
   },
-  "include": ["src", "prisma"],
+  "include": ["src", "prisma"]
 }

@@ -11,21 +11,27 @@
   "dependencies": {
     "@flexslot/db": "workspace:*",
     "@flexslot/types": "workspace:*",
+    "@headlessui/react": "^2.2.9",
+    "@prisma/client": "^5.20.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "ioredis": "^5.4.1",
+    "jose": "^6.1.1",
+    "lucide-react": "^0.553.0",
     "next": "^15.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@prisma/client": "^5.20.0",
-    "ioredis": "^5.4.1",
-    "zod": "^3.23.8"
+    "swr": "^2.3.6",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
     "eslint": "^9.12.0",
-    "typescript": "^5.6.3",
-    "tailwindcss": "^3.4.13",
     "postcss": "^8.4.47",
-    "autoprefixer": "^10.4.20"
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.3"
   }
 }

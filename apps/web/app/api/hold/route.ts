@@ -1,36 +1,68 @@
-import { HoldRequest } from "@flexslot/types";
-import { redis } from "@/lib/redis";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { randomUUID } from "crypto";
 
-// Uses Redis SET NX EX as a fast mutex; mirrors to DB for audit/visibility.
+const Body = z.object({
+  slotId: z.string(),
+  userEmail: z.string().email().optional(),
+  ttlSeconds: z.number().int().positive().max(3600).optional(), // default 15 min
+});
+
 export async function POST(req: Request) {
-  const body = await req.json();
-  const parsed = HoldRequest.safeParse(body);
-  if (!parsed.success) return new Response("Invalid payload", { status: 400 });
-  const { resourceId, startAt, endAt, customerEmail } = parsed.data;
+  const json = await req.json().catch(() => ({}));
+  const parsed = Body.safeParse(json);
+  if (!parsed.success)
+    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const key = `hold:${resourceId}:${startAt}`;
-  const ttlSec = 10 * 60; // 10 minutes
+  const { slotId, userEmail, ttlSeconds = 900 } = parsed.data;
 
-  const lock = await redis.set(key, customerEmail, "NX", "EX", ttlSec);
-  if (!lock) return new Response("Slot already held", { status: 409 });
-
-  // Mirror to DB (unique(resourceId,startAt) ensures no dup holds)
   try {
-    await prisma.hold.create({
-      data: {
-        resourceId,
-        startAt: new Date(startAt),
-        endAt: new Date(endAt),
-        customerEmail,
-        expiresAt: new Date(Date.now() + ttlSec * 1000),
-      },
-    });
-  } catch (e) {
-    // If DB uniqueness fails, release Redis lock
-    await redis.del(key);
-    return new Response("Hold conflict", { status: 409 });
-  }
+    const result = await prisma.$transaction(async (tx) => {
+      // ensure slot exists & is AVAILABLE
+      const slot = await tx.slot.findUnique({ where: { id: slotId } });
+      if (!slot) throw new Error("SLOT_NOT_FOUND");
+      if (slot.status !== "AVAILABLE") throw new Error("SLOT_NOT_AVAILABLE");
 
-  return Response.json({ ok: true, expiresIn: ttlSec });
+      // optional user
+      let userId: string | undefined;
+      if (userEmail) {
+        const user = await tx.user.upsert({
+          where: { email: userEmail },
+          update: {},
+          create: { email: userEmail },
+          select: { id: true },
+        });
+        userId = user.id;
+      }
+
+      // mark HELD
+      await tx.slot.update({ where: { id: slotId }, data: { status: "HELD" } });
+
+      // create hold
+      const hold = await tx.hold.create({
+        data: {
+          slotId,
+          userId,
+          status: "ACTIVE",
+          token: randomUUID(),
+          expiresAt: new Date(Date.now() + ttlSeconds * 1000),
+        },
+      });
+
+      return { hold };
+    });
+
+    return Response.json({
+      holdId: result.hold.id,
+      token: result.hold.token,
+      expiresAt: result.hold.expiresAt,
+    });
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    if (msg === "SLOT_NOT_FOUND")
+      return Response.json({ error: msg }, { status: 404 });
+    if (msg === "SLOT_NOT_AVAILABLE")
+      return Response.json({ error: msg }, { status: 409 });
+    return Response.json({ error: "INTERNAL_ERROR" }, { status: 500 });
+  }
 }
