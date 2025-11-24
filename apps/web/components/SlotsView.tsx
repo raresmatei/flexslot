@@ -170,7 +170,10 @@ export default function SlotsView({
     try {
       const res = await fetch("/api/book", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "Idempotency-Key": crypto.randomUUID(),
+        },
         body: JSON.stringify({
           slotId,
           resourceId,

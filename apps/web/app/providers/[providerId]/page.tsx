@@ -1,11 +1,11 @@
 import SlotsView from "../../../components/slots/SlotsView";
 
-export default function ProviderPage({
+export default async function ProviderPage({
   params,
 }: {
   params: { providerId: string };
 }) {
-  const id = params.providerId;
+  const id = await params.providerId;
   return (
     <main className="container-resp py-6">
       <div className="mb-4 flex items-center justify-between">

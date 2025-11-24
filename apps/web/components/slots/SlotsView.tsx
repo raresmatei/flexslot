@@ -1,9 +1,9 @@
 "use client";
 import * as React from "react";
-import { getSlots, bookSlot, type Slot } from "../../lib/api";
+import { getSlots, type Slot } from "../../lib/api";
 import SlotCard from "./SlotCard";
 import FiltersSheet, { type Filters } from "../FiltersSheet";
-import BookingDrawer from "../BookingDrawer";
+import PaymentDrawer from "../PaymentDrawer";
 
 type Props = { providerId: string };
 
@@ -14,9 +14,8 @@ export default function SlotsView({ providerId }: Props) {
   const [error, setError] = React.useState<string | null>(null);
   const [slots, setSlots] = React.useState<Slot[]>([]);
   const [sheetOpen, setSheetOpen] = React.useState(false);
+
   const [selected, setSelected] = React.useState<Slot | null>(null);
-  const [bookingBusy, setBookingBusy] = React.useState(false);
-  const [bookingError, setBookingError] = React.useState<string | null>(null);
 
   const load = React.useCallback(
     async (f: Filters) => {
@@ -54,25 +53,6 @@ export default function SlotsView({ providerId }: Props) {
     setFilters({});
     setApplied({});
     load({});
-  }
-
-  async function confirmBooking(email: string, slot: Slot) {
-    setBookingBusy(true);
-    setBookingError(null);
-    try {
-      await bookSlot({
-        slotId: slot.id,
-        resourceId: slot.resourceId || "",
-        userEmail: email,
-      });
-      setSelected(null);
-      alert("Booked! Check your email for confirmation.");
-      load(applied);
-    } catch (e: any) {
-      setBookingError(e?.message || "Booking failed");
-    } finally {
-      setBookingBusy(false);
-    }
   }
 
   return (
@@ -142,15 +122,13 @@ export default function SlotsView({ providerId }: Props) {
         setOpen={setSheetOpen}
       />
 
-      <BookingDrawer
+      <PaymentDrawer
         slot={selected}
-        onClose={() => {
+        onClose={() => setSelected(null)}
+        onSuccess={() => {
           setSelected(null);
-          setBookingError(null);
+          load(applied);
         }}
-        onConfirm={confirmBooking}
-        busy={bookingBusy}
-        error={bookingError}
       />
     </div>
   );

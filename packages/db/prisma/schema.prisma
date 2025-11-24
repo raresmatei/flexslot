@@ -23,12 +23,13 @@ model Resource {
   name      String
   location  String?
   capacity  Int      @default(1)
+  timezone  String?  // IANA tz e.g. "Europe/Bucharest"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   slots        Slot[]
   reservations Reservation[]
-  integrations ResourceIntegration[]
+  //integrations ResourceIntegration[]
 }
 
 model Slot {
@@ -102,9 +103,10 @@ enum ReservationStatus {
 }
 
 model ResourceIntegration {
+  @@ignore
   id                 String   @id @default(cuid())
   resourceId         String
-  resource           Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  //resource           Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   provider           String
   externalCalendarId String
   isActive           Boolean  @default(true)
@@ -114,6 +116,7 @@ model ResourceIntegration {
 }
 
 model ExternalEventMap {
+  @@ignore
   id                 String   @id @default(cuid())
   resourceId         String
   provider           String
@@ -127,3 +130,16 @@ model ExternalEventMap {
 
   @@unique([provider, externalCalendarId, externalEventId])
 }
+
+model Idempotency {
+  id        String   @id @default(cuid())
+  key       String
+  route     String
+  status    String   @default("succeeded") // "succeeded" | "failed"
+  response  Json?
+  createdAt DateTime @default(now())
+
+  @@unique([key, route], map: "uniq_key_route")
+  @@index([createdAt])
+}
+
