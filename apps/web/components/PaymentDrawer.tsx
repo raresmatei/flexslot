@@ -1,12 +1,12 @@
 "use client";
 import * as React from "react";
-import { stripePromise } from "../lib/stripeClient";
 import {
   Elements,
   PaymentElement,
   useElements,
   useStripe,
 } from "@stripe/react-stripe-js";
+import { stripePromise } from "../lib/stripeClient";
 
 type Slot = {
   id: string;
@@ -15,12 +15,7 @@ type Slot = {
   end: string;
   location?: string | null;
 };
-
-type Props = {
-  slot: Slot | null;
-  onClose: () => void;
-  onSuccess: () => void; // called after reservation is confirmed (webhook done)
-};
+type Props = { slot: Slot | null; onClose: () => void; onSuccess: () => void };
 
 function fmtTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso),
@@ -32,62 +27,54 @@ function fmtTimeRange(startIso: string, endIso: string) {
   return `${s.toLocaleTimeString(undefined, opt)} – ${e.toLocaleTimeString(undefined, opt)}`;
 }
 function priceCentsFor(slot: Slot) {
-  // TODO: replace with your slot pricing logic
-  return 1500; // €15.00
+  return 1500;
 }
 
 export default function PaymentDrawer({ slot, onClose, onSuccess }: Props) {
   const open = Boolean(slot);
-  const [email, setEmail] = React.useState("");
   const [creating, setCreating] = React.useState(false);
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
   const [holdId, setHoldId] = React.useState<string | null>(null);
   const [expiresAt, setExpiresAt] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [me, setMe] = React.useState<{ id: string; email: string } | null>(
+    null
+  );
 
-  // Countdown timer
-  const secondsLeft = React.useMemo(() => {
-    if (!expiresAt) return null;
-    const left = Math.max(
-      0,
-      Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)
-    );
-    return left;
-  }, [expiresAt]);
   React.useEffect(() => {
-    if (!open || !expiresAt) return;
-    const t = setInterval(() => {
-      // force re-render by updating state (use expiresAt changes)
-      // We'll just trigger a render via setError((e)=>e) noop
-      setError((e) => e);
-    }, 1000);
-    return () => clearInterval(t);
-  }, [open, expiresAt]);
-
-  // Reset when opening/closing
-  React.useEffect(() => {
-    if (open) {
-      setEmail("");
-      setClientSecret(null);
-      setHoldId(null);
-      setExpiresAt(null);
-      setError(null);
-    }
+    if (!open) return;
+    setClientSecret(null);
+    setHoldId(null);
+    setExpiresAt(null);
+    setError(null);
+    (async () => {
+      const r = await fetch("/api/auth/me", { cache: "no-store" });
+      if (!r.ok) {
+        setMe(null);
+        return;
+      }
+      const j = await r.json();
+      if (j.role !== "user") {
+        setMe(null);
+        return;
+      }
+      setMe(j.user);
+    })();
   }, [open]);
 
   async function startFlow() {
-    if (!slot) return;
+    if (!slot || !me) return;
     setError(null);
     setCreating(true);
     try {
-      // 1) Create hold
+      // 1) Create hold (send userId explicitly)
       const resHold = await fetch("/api/holds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slotId: slot.id,
           resourceId: slot.resourceId || "",
-          userEmail: email,
+          userId: me.id,
         }),
       });
       if (!resHold.ok) {
@@ -98,7 +85,7 @@ export default function PaymentDrawer({ slot, onClose, onSuccess }: Props) {
       setHoldId(h.id);
       setExpiresAt(h.expiresAt);
 
-      // 2) Create PaymentIntent
+      // 2) PaymentIntent
       const amountCents = priceCentsFor(slot);
       const resPi = await fetch("/api/payments/intents", {
         method: "POST",
@@ -125,21 +112,22 @@ export default function PaymentDrawer({ slot, onClose, onSuccess }: Props) {
       } catch {}
     }
   }
-
   function closeAll() {
     cleanupHold();
     onClose();
   }
 
-  // If hold expired, auto-close
+  const secondsLeft = React.useMemo(() => {
+    if (!expiresAt) return null;
+    return Math.max(
+      0,
+      Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)
+    );
+  }, [expiresAt]);
   React.useEffect(() => {
     if (!expiresAt) return;
-    const t = new Date(expiresAt).getTime() - Date.now();
-    if (t <= 0) {
-      setError("Hold expired. Please try again.");
-      setTimeout(() => closeAll(), 1200);
-    }
-    // no cleanup on purpose
+    const t = setInterval(() => {}, 1000);
+    return () => clearInterval(t);
   }, [expiresAt]);
 
   return (
@@ -152,7 +140,6 @@ export default function PaymentDrawer({ slot, onClose, onSuccess }: Props) {
         className={`fixed bottom-0 left-0 right-0 z-50 w-full transform bg-neutral-950 p-6 ring-1 ring-neutral-800 transition ${open ? "translate-y-0" : "translate-y-full"}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Pay and confirm booking"
       >
         {slot ? (
           <div className="container-resp">
@@ -174,40 +161,39 @@ export default function PaymentDrawer({ slot, onClose, onSuccess }: Props) {
               {slot.location ? <span> · {slot.location}</span> : null}
             </div>
 
-            {!clientSecret ? (
+            {!me ? (
+              <div className="mt-6 card p-4">
+                <p className="text-sm">
+                  Please{" "}
+                  <a className="link" href="/login">
+                    sign in
+                  </a>{" "}
+                  to continue.
+                </p>
+              </div>
+            ) : !clientSecret ? (
               <>
-                <div className="mt-6 grid gap-3 sm:max-w-md">
-                  <label className="label">Email</label>
-                  <input
-                    className="input"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                  {expiresAt ? (
-                    <div className="text-xs text-neutral-400">
-                      Hold expires in {secondsLeft ?? 0}s
-                    </div>
-                  ) : (
-                    <div className="text-xs text-neutral-400">
-                      You’ll have 2 minutes to complete payment after starting.
-                    </div>
-                  )}
-                  {error ? (
-                    <p className="mt-1 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
-                      {error}
-                    </p>
-                  ) : null}
+                <div className="mt-4 text-sm text-neutral-300">
+                  You are signing in as{" "}
+                  <span className="font-medium">{me.email}</span>.
                 </div>
-                <div className="mt-6 flex items-center justify-end gap-2">
-                  <button className="btn btn-ghost" onClick={closeAll}>
-                    Cancel
-                  </button>
+                {secondsLeft != null ? (
+                  <div className="text-xs text-neutral-400">
+                    Hold expires in {secondsLeft}s
+                  </div>
+                ) : (
+                  <div className="text-xs text-neutral-400">
+                    You’ll have 2 minutes to complete payment after starting.
+                  </div>
+                )}
+                {error ? (
+                  <p className="mt-2 text-sm text-red-300">{error}</p>
+                ) : null}
+                <div className="mt-4 flex items-center justify-end">
                   <button
-                    className="btn btn-primary disabled:opacity-50"
-                    disabled={!email || creating}
+                    className="btn btn-primary"
                     onClick={startFlow}
+                    disabled={creating}
                   >
                     {creating
                       ? "Starting…"
@@ -226,7 +212,7 @@ export default function PaymentDrawer({ slot, onClose, onSuccess }: Props) {
                     onSuccess();
                     closeAll();
                   }}
-                  onError={(msg) => setError(msg)}
+                  onError={(m) => setError(m)}
                   expiresAt={expiresAt}
                 />
               </Elements>
@@ -252,11 +238,9 @@ function StripePaymentSection({
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = React.useState(false);
-  const [polling, setPolling] = React.useState(false);
 
   async function pollStatus() {
-    setPolling(true);
-    const deadline = Date.now() + 25_000; // up to 25s
+    const deadline = Date.now() + 25_000;
     while (Date.now() < deadline) {
       const r = await fetch(`/api/holds/${holdId}/status`);
       if (r.ok) {
@@ -272,16 +256,12 @@ function StripePaymentSection({
       }
       await new Promise((res) => setTimeout(res, 1500));
     }
-    onError(
-      "Payment processed, waiting for confirmation. Check ‘My bookings’."
-    ); // eventual consistency fallback
+    onError("Payment processed, waiting for confirmation. Check My bookings.");
   }
 
   async function onSubmit() {
     if (!stripe || !elements) return;
     setSubmitting(true);
-    onError(""); // clear
-
     try {
       const { error } = await stripe.confirmPayment({
         elements,
@@ -292,7 +272,6 @@ function StripePaymentSection({
         onError(error.message || "Payment failed");
         return;
       }
-      // Payment confirmed client-side. Webhook will create the reservation.
       await pollStatus();
     } finally {
       setSubmitting(false);
@@ -312,13 +291,13 @@ function StripePaymentSection({
       <div className="mt-2 text-xs text-neutral-400">
         {secs != null ? `Hold expires in ${secs}s` : null}
       </div>
-      <div className="mt-4 flex items-center justify-end gap-2">
+      <div className="mt-4 flex items-center justify-end">
         <button
           className="btn btn-primary disabled:opacity-50"
           onClick={onSubmit}
-          disabled={submitting || polling || !stripe || !elements}
+          disabled={submitting || !stripe || !elements}
         >
-          {submitting ? "Processing…" : polling ? "Confirming…" : "Pay & book"}
+          {submitting ? "Processing…" : "Pay & book"}
         </button>
       </div>
     </div>

@@ -11,11 +11,21 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String?
+  passwordHash  String?       // ⬅️ for password login (optional for legacy users)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   reservations Reservation[]
   holds        Hold[]
+}
+
+model ProviderAccount {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Resource {

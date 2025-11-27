@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const resourceId = params.id;
+  const resourceId = await params.id;
 
   try {
     const mod = await import("@flexslot/db").catch(() => null);

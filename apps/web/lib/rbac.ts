@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSession } from "./auth";
+import { getSession, Session } from "./auth";
 
 export async function requireUser() {
-  const s = await getSession();
-  if (!s || s.role !== "user") {
+  const session = await getSession();
+
+  console.log('session', session);
+  if (!session || session.role !== "user") {
     return NextResponse.json(
       { error: "FORBIDDEN", message: "User role required" },
       { status: 403 }
